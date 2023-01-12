@@ -46,6 +46,17 @@ Unable to parse zipcode: *safe-to-ignore*
 wrote out bdc_results.shp
 ```
 
+please note you will want all the related shapefile extensions, the actual
+list of files produced is:
+
+```
+bdc_results.cpg
+bdc_results.dbf
+bdc_results.prj
+bdc_results.shp
+bdc_results.shx
+```
+
 If you see any messages saying "Unable to parse zipcode" these are safe
 to ignore.  The related data is shown, but the row will be written with
 a NULL zipcode.
