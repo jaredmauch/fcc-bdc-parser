@@ -109,6 +109,7 @@ for read_file in files:
 ## print("Wrote %d entries to myfile.geojson" % count)
 
 # schema for ESRI Shapefile
+# Note they have a 10 char limit on colunm size (ugh)
 
 schema = {
       'geometry': 'Point',
@@ -117,11 +118,11 @@ schema = {
           'city': 'str',
           'state': 'str',
           'unit_count': 'int',
-          'block_geoid': 'int',
+          'blk_geoid': 'int',
           'zip': 'int',
-          'location_id': 'int',
-          'county_geoid': 'int',
-          'source_file': 'str',
+          'loc_id': 'int',
+          'cnty_geoid': 'int',
+          'src_file': 'str',
           'fast_isp': 'str',
           'speed_up': 'int',
           'speed_down': 'int',
@@ -149,11 +150,11 @@ for x in location_info:
             'city' : location_info[x]['city'],
             'state': location_info[x]['state'],
             'unit_count': int(location_info[x]['unit_count']),
-            'block_geoid': int(location_info[x]['block_geoid']),
+            'blk_geoid': int(location_info[x]['block_geoid']),
             'zip': zipcode,
-            'location_id': int(location_info[x]['location_id']),
-            'county_geoid': int(location_info[x]['county_geoid']),
-            'source_file': ','.join(location_info[x]['source_file']),
+            'loc_id': int(location_info[x]['location_id']),
+            'cnty_geoid': int(location_info[x]['county_geoid']),
+            'src_file': ','.join(location_info[x]['source_file']),
             'fast_isp': None,
             'speed_up': -1,
             'speed_down': -1,
