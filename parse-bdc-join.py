@@ -130,6 +130,11 @@ schema = {
       },
 }
 
+for x in schema['properties']:
+    if len(x) > 10:
+        print("WARNING: len(%s) = %d is more than 10 char limit will be truncated in output" % ( x, len(x)))
+
+
 pointShp = fiona.open('bdc_results.shp', mode='w', driver='ESRI Shapefile', schema = schema, crs = "EPSG:4326")
 
 # iterate over each row in the source files
