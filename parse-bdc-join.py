@@ -152,7 +152,7 @@ for x in location_info:
             zipcode = int(location_info[x]['zip'])
         except:
             zipcode = None
-            print("Unable to parse zipcode:", location_info[x])
+#            print("Unable to parse zipcode:", location_info[x])
         # create row that is written to shapefile
         rowDict = {
             'geometry' : {
