@@ -42,12 +42,13 @@ location_info = { }
 headers = ( "address_primary","city","state","zip","zip_suffix","unit_count","bsl_flag","building_type_code","land_use_code","address_confidence_code","county_geoid","block_geoid","h3_9","latitude","longitude","address_id","parcel_id","address_confidence_code","address_range","pre_direction","street_name","suffix","post_direction","primary_secondary","address","address_source")
 
 # names of your CQ BDC files you want to be processed
-files = ("FCC_Active_BSL_12312022_ver1.csv",
-        "FCC_Active_NoBSL_12312022_ver1.csv",
-        "FCC_Secondary_12312022_ver1.csv")
+bdc_files = [ "FCC_Active_BSL_12312023_rel_4.csv", "FCC_Active_NoBSL_12312023_rel_4.csv", "FCC_Secondary_12312023_rel_4.csv" ]
+
+
+
 
 # read the CQ BDC files
-for read_file in files:
+for read_file in bdc_files:
     print ("Starting to parse: %s" % read_file)
     with open(read_file, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -70,10 +71,22 @@ bdc_26_headers = ('frn','provider_id','brand_name','location_id','technology','m
 
 bdc_skip_headers = ('location_id', 'state_usps', 'block_geoid')
 
-files = [ 'bdc_26_Cable_fixed_broadband_063022.csv', 'bdc_26_Fiber-to-the-Premises_fixed_broadband_063022.csv','bdc_26_NGSO-Satellite_fixed_broadband_063022.csv',
-    'bdc_26_Copper_fixed_broadband_063022.csv', 'bdc_26_Licensed-Fixed-Wireless_fixed_broadband_063022.csv', 'bdc_26_Unlicensed-Fixed-Wireless_fixed_broadband_063022.csv' ]
+# names of technolgies to parse
 
-for read_file in files:
+technologies = [ 'Cable_fixed_broadband', 'FibertothePremises_fixed_broadband', 'LBRFixedWireless_fixed_broadband', 'UnlicensedFixedWireless_fixed_broadband' ]
+
+tech_type = 'Mercury_Broadband'
+# names of technology files from fcc.gov
+#technology_files = [ 'bdc_39_' + tech_type + '_J23_07feb2024.csv' ]
+
+technology_files = [ "bdc_26_190236_fixed_broadband_J23_23jan2024.csv", "bdc_39_190236_fixed_broadband_J23_23jan2024.csv" ]
+
+
+# your output file name
+
+fiona_outfile = 'bdc_20231231_23jan2024_' + tech_type + '_results.shp'
+
+for read_file in technology_files:
     print ("Starting to parse: %s" % read_file)
     with open(read_file, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -109,6 +122,7 @@ for read_file in files:
 ## print("Wrote %d entries to myfile.geojson" % count)
 
 # schema for ESRI Shapefile
+# Note they have a 10 char limit on colunm size (ugh)
 
 schema = {
       'geometry': 'Point',
@@ -117,11 +131,11 @@ schema = {
           'city': 'str',
           'state': 'str',
           'unit_count': 'int',
-          'block_geoid': 'int',
+          'blk_geoid': 'int',
           'zip': 'int',
-          'location_id': 'int',
-          'county_geoid': 'int',
-          'source_file': 'str',
+          'loc_id': 'int',
+          'cnty_geoid': 'int',
+          'src_file': 'str',
           'fast_isp': 'str',
           'speed_up': 'int',
           'speed_down': 'int',
@@ -129,48 +143,50 @@ schema = {
       },
 }
 
-pointShp = fiona.open('bdc_results.shp', mode='w', driver='ESRI Shapefile', schema = schema, crs = "EPSG:4326")
+pointShp = fiona.open(fiona_outfile, mode='w', driver='ESRI Shapefile', schema = schema, crs = "EPSG:4326")
 
 # iterate over each row in the source files
 for x in location_info:
-    try:
-        zipcode = int(location_info[x]['zip'])
-    except:
-        zipcode = None
-        print("Unable to parse zipcode:", location_info[x])
-    # create row that is written to shapefile
-    rowDict = {
-        'geometry' : {
-            'type': 'Point',
-            'coordinates': (float(location_info[x]['longitude']), float(location_info[x]['latitude']))
-        },
-        'properties': {
-            'name' : location_info[x]['address_primary'],
-            'city' : location_info[x]['city'],
-            'state': location_info[x]['state'],
-            'unit_count': int(location_info[x]['unit_count']),
-            'block_geoid': int(location_info[x]['block_geoid']),
-            'zip': zipcode,
-            'location_id': int(location_info[x]['location_id']),
-            'county_geoid': int(location_info[x]['county_geoid']),
-            'source_file': ','.join(location_info[x]['source_file']),
-            'fast_isp': None,
-            'speed_up': -1,
-            'speed_down': -1,
-            'technology': None
+#    if location_info[x].get('state', None) == 'OH':
+        try:
+            zipcode = int(location_info[x]['zip'])
+        except:
+            zipcode = None
+            print("Unable to parse zipcode:", location_info[x])
+        # create row that is written to shapefile
+        rowDict = {
+            'geometry' : {
+                'type': 'Point',
+                'coordinates': (float(location_info[x].get('longitude', 0)), float(location_info[x].get('latitude', 0)))
+            },
+            'properties': {
+                'name' : location_info[x].get('address_primary', None),
+                'city' : location_info[x].get('city', None),
+                'state': location_info[x].get('state', None),
+                'unit_count': int(location_info[x].get('unit_count', -1)),
+                'blk_geoid': int(location_info[x].get('block_geoid', -1)),
+                'zip': zipcode,
+                'loc_id': int(location_info[x].get('location_id', -1)),
+                'cnty_geoid': int(location_info[x].get('county_geoid', -1)),
+                'src_file': ','.join(location_info[x].get('source_file', None)),
+                'fast_isp': None,
+                'speed_up': -1,
+                'speed_down': -1,
+                'technology': None
+            }
         }
-    }
-    for pl in location_info[x]['provider_list']:
-#        print(pl)
-        if int(pl['max_advertised_download_speed']) > rowDict['properties']['speed_down']:
-            rowDict['properties']['speed_down'] = int(pl['max_advertised_download_speed'])
-            rowDict['properties']['fast_isp'] = pl['brand_name']
-            rowDict['properties']['speed_up'] = int(pl['max_advertised_upload_speed'])
-            rowDict['properties']['technology'] = pl['technology']
-#        print('rowDict', rowDict)
-    pointShp.write(rowDict)
+        for pl in location_info[x]['provider_list']:
+    #        print(pl)
+            if int(pl['max_advertised_download_speed']) > rowDict['properties']['speed_down']:
+                rowDict['properties']['speed_down'] = int(pl['max_advertised_download_speed'])
+                rowDict['properties']['fast_isp'] = pl['brand_name']
+                rowDict['properties']['speed_up'] = int(pl['max_advertised_upload_speed'])
+                rowDict['properties']['technology'] = pl['technology']
+    #        print('rowDict', rowDict)
+#        if rowDict['properties'].get('technology', None) is not None:
+        pointShp.write(rowDict)
 #close fiona object
 pointShp.close()
 #
-print("wrote out bdc_results.shp")
+print("wrote out %s" % fiona_outfile)
 #
