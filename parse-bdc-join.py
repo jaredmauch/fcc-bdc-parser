@@ -36,14 +36,17 @@ except ImportError:
 
 # file format: (FCC_Secondary_12312022_ver1.csv)
 # "location_id","address_id","parcel_id","address_confidence_code","address_range","pre_direction","street_name","suffix","post_direction","primary_secondary","address","city","state","zip","zip_suffix","address_source"
+#
+# file format: (FCC_Supplemental_06302026_rel_9.csv)
+# "location_id","address_id","parcel_id","address_confidence_code","address_range","pre_direction","street_name","suffix","post_direction","primary_supplemental","address","city","state","zip","zip_suffix","address_source","fcc_rel"
 
 location_info = { }
 
 # unique list of all headers in file(s)
-headers = ( "address_primary","city","state","zip","zip_suffix","unit_count","bsl_flag","building_type_code","land_use_code","address_confidence_code","county_geoid","block_geoid","h3_9","latitude","longitude","address_id","parcel_id","address_range","pre_direction","street_name","suffix","post_direction","primary_secondary","address","address_source")
+headers = ( "address_primary","city","state","zip","zip_suffix","unit_count","bsl_flag","building_type_code","land_use_code","address_confidence_code","county_geoid","block_geoid","h3_9","latitude","longitude","address_id","parcel_id","address_range","pre_direction","street_name","suffix","post_direction","primary_secondary","primary_supplemental","address","address_source","fcc_rel")
 
 # names of your CQ BDC files you want to be processed
-bdc_files = [ "FCC_Active_BSL_12312023_rel_4.csv", "FCC_Active_NoBSL_12312023_rel_4.csv", "FCC_Secondary_12312023_rel_4.csv" ]
+bdc_files = [ "FCC_Active_BSL_06302026_rel_9.csv", "FCC_Active_NoBSL_06302026_rel_9.csv", "FCC_Supplemental_06302026_rel_9.csv" ]
 
 
 def safe_int(value, default=None):
@@ -53,11 +56,18 @@ def safe_int(value, default=None):
         return default
 
 
+def csv_dict_reader(csvfile):
+    reader = csv.DictReader(csvfile)
+    if reader.fieldnames:
+        reader.fieldnames = [name.strip() if name else name for name in reader.fieldnames]
+    return reader
+
+
 # read the CQ BDC files
 for read_file in bdc_files:
     print ("Starting to parse: %s" % read_file)
-    with open(read_file, newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
+    with open(read_file, newline='', encoding='utf-8-sig') as csvfile:
+        reader = csv_dict_reader(csvfile)
         for row in reader:
             location_id = row['location_id']
             if location_id not in location_info:
@@ -70,6 +80,9 @@ for read_file in bdc_files:
             for h in headers:
                 if row.get(h, None) is not None:
                     location_info[location_id][h] = row[h]
+            # newer CQ files renamed primary_secondary -> primary_supplemental
+            if location_info[location_id].get('primary_secondary') is None and location_info[location_id].get('primary_supplemental') is not None:
+                location_info[location_id]['primary_secondary'] = location_info[location_id]['primary_supplemental']
 
 # bdc_26_Fiber-to-the-Premises_fixed_broadband_063022.csv
 # frn,provider_id,brand_name,location_id,technology,max_advertised_download_speed,max_advertised_upload_speed,low_latency,business_residential_code,state_usps,block_geoid,h3_res8_id
@@ -79,24 +92,28 @@ bdc_26_headers = ('frn','provider_id','brand_name','location_id','technology','m
 
 bdc_skip_headers = ('location_id', 'state_usps', 'block_geoid')
 
-tech_type = 'Mercury_Broadband'
 # names of technology files from fcc.gov
-#technology_files = [ 'bdc_39_' + tech_type + '_J23_07feb2024.csv' ]
-
-technology_files = [ "bdc_26_190236_fixed_broadband_J23_23jan2024.csv", "bdc_39_190236_fixed_broadband_J23_23jan2024.csv" ]
+# served/unserved summary files have no provider/speed columns and are skipped
+technology_files = [
+    "bdc_26_Cable_fixed_broadband_D25_15sep2026.csv",
+    "bdc_26_FibertothePremises_fixed_broadband_D25_15sep2026.csv",
+    "bdc_26_LBRFixedWireless_fixed_broadband_D25_15sep2026.csv",
+    "bdc_26_LicensedFixedWireless_fixed_broadband_D25_15sep2026.csv",
+    "bdc_26_NGSOSatellite_fixed_broadband_D25_15sep2026.csv",
+]
 
 
 # your output file name
 
-fiona_outfile = 'bdc_20231231_23jan2024_' + tech_type + '_results.shp'
+fiona_outfile = 'bdc_20260630_15sep2026_results.shp'
 
 for read_file in technology_files:
     print ("Starting to parse: %s" % read_file)
-    with open(read_file, newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
+    with open(read_file, newline='', encoding='utf-8-sig') as csvfile:
+        reader = csv_dict_reader(csvfile)
         for row in reader:
             # only populate location_ids we have the CQ files for
-            if row['location_id'] in location_info:
+            if row.get('location_id') in location_info:
                 temp_object = { }
                 # build the object ouf of the bdc_26 file
                 for h in bdc_26_headers:
@@ -104,6 +121,9 @@ for read_file in technology_files:
                         # we do not need these headers as they are in the parent object
                         if h not in bdc_skip_headers:
                             temp_object[h] = row[h]
+                # skip rows that have no advertised download speed to compare
+                if not temp_object.get('max_advertised_download_speed'):
+                    continue
                 # add this provider to the list
                 location_info[row['location_id']]['provider_list'].append(temp_object)
 
@@ -165,9 +185,9 @@ with fiona.open(fiona_outfile, mode='w', driver='ESRI Shapefile', schema = schem
             speed_down = safe_int(pl.get('max_advertised_download_speed'), -1)
             if speed_down > rowDict['properties']['speed_down']:
                 rowDict['properties']['speed_down'] = speed_down
-                rowDict['properties']['fast_isp'] = pl['brand_name']
+                rowDict['properties']['fast_isp'] = pl.get('brand_name')
                 rowDict['properties']['speed_up'] = safe_int(pl.get('max_advertised_upload_speed'), -1)
-                rowDict['properties']['technology'] = pl['technology']
+                rowDict['properties']['technology'] = pl.get('technology')
     #        print('rowDict', rowDict)
 #        if rowDict['properties'].get('technology', None) is not None:
         pointShp.write(rowDict)
